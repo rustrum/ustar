@@ -1,0 +1,16 @@
+[package]
+name = "ustar"
+version = "0.0.0-stub"
+authors = ["Rumato Estorsky"]
+edition = "2018"
+description = "Simplified Unix Standard TAR archiver"
+repository = "https://github.com/rustrum/ustar"
+license-file = "LICENSE"
+readme = "README.md"
+keywords = ["tar", "ustar"]
+exclude = [
+    ".github/*",
+    ".gitignore",
+]
+
+[dependencies]
