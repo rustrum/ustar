@@ -1,6 +1,6 @@
 mod common;
 
-pub use common::{ErrorTar, HeaderProperty, PosixHeader, BLOCK_SIZE};
+pub use common::{ErrorTar, HeaderProperty, HeaderValidation, PosixHeader, BLOCK_SIZE};
 
 use core::iter::Iterator;
 use std::io::{Read, Seek, SeekFrom};
@@ -8,16 +8,6 @@ use std::io::{Read, Seek, SeekFrom};
 #[derive(Debug)]
 pub enum TarError {
     ReadData,
-}
-// use std::mem;
-
-fn zeroes(slice: &[u8]) -> bool {
-    for i in 0..slice.len() {
-        if slice[i] != 0 {
-            return false;
-        }
-    }
-    true
 }
 
 pub struct HeadersIterator<'a, S> {
@@ -41,20 +31,21 @@ impl<'a, T: Read + Seek> Iterator for HeadersIterator<'a, T> {
     fn next(&mut self) -> Option<Self::Item> {
         let mut buffer = [0; BLOCK_SIZE];
 
-        println!("readin from {}", self.offset);
+        // println!("readin from {}", self.offset);
         self.source.read_exact(&mut buffer).ok()?;
-        if zeroes(&buffer) {
+
+        // print!("BUFFER: ");
+        // for i in 0..BLOCK_SIZE {
+        //     print!("{}", buffer[i]);
+        // }
+        // println!("");
+
+        let h = PosixHeader::from(buffer);
+        if let HeaderValidation::Zeroes = h.validate() {
             return None;
         }
         self.offset += BLOCK_SIZE;
 
-        print!("BUFFER: ");
-        for i in 0..BLOCK_SIZE {
-            print!("{}", buffer[i]);
-        }
-        println!("");
-        // println!("Buffer {:?}", buffer);
-        let h = PosixHeader::from(buffer);
         let size = h.size();
         let shift = (size / BLOCK_SIZE * BLOCK_SIZE)
             + if size % BLOCK_SIZE == 0 {
@@ -72,8 +63,6 @@ impl<'a, T: Read + Seek> Iterator for HeadersIterator<'a, T> {
 
 #[cfg(test)]
 mod tests {
-    // todo!("Check file with exact size of 512 bytes");
-    // todo!("Check file with exact size of 512 bytes");
     use std::env;
 
     use super::*;
@@ -99,15 +88,19 @@ mod tests {
 
         let file_1 = &headers[0];
         assert_that!(file_1.size(), equal_to(512));
+        assert_that!(file_1.validate(), equal_to(HeaderValidation::Valid));
 
         let file_2 = &headers[1];
         assert_that!(file_2.size(), less_than(512));
+        assert_that!(file_2.validate(), equal_to(HeaderValidation::Valid));
 
         let file_3 = &headers[2];
         assert_that!(file_3.size(), greater_than(512));
+        assert_that!(file_3.validate(), equal_to(HeaderValidation::Valid));
 
         let file_4 = &headers[3];
         assert_that!(file_4.size(), less_than(512));
+        assert_that!(file_4.validate(), equal_to(HeaderValidation::Valid));
     }
 
     #[test]
@@ -123,13 +116,16 @@ mod tests {
 
         let file_1 = &headers[0];
         assert_that!(file_1.size(), greater_than(0));
+        assert_that!(file_1.validate(), equal_to(HeaderValidation::Valid));
         let mut prev_size = file_1.size();
 
         let file_2 = &headers[1];
         assert_that!(file_2.size(), greater_than(prev_size));
+        assert_that!(file_2.validate(), equal_to(HeaderValidation::Valid));
         prev_size = file_2.size();
 
         let file_3 = &headers[2];
+        assert_that!(file_3.validate(), equal_to(HeaderValidation::Valid));
         assert_that!(file_3.size(), greater_than(prev_size));
     }
 }
