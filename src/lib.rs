@@ -1,6 +1,6 @@
-mod common;
+pub mod common;
 
-pub use common::{ErrorTar, HeaderProperty, HeaderValidation, PosixHeader, BLOCK_SIZE};
+// pub use common::{ErrorTar, HeaderProperty, HeaderValidation, PosixHeader, BLOCK_SIZE};
 
 use core::iter::Iterator;
 use std::io::{Read, Seek, SeekFrom};
