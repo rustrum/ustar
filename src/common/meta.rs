@@ -1,9 +1,9 @@
 use core::ops::Range;
+use std::collections::HashMap;
 use std::io::{Read, Seek, SeekFrom};
 
-use super::{offset_by_blocks, pair_match_key, pair_match_value, parse_isize, parse_usize};
+use super::{BLOCK_SIZE, offset_by_blocks, pair_match_key, pair_match_value, parse_isize, parse_usize};
 
-pub const BLOCK_SIZE: usize = 512;
 pub const HEADER_SIZE: usize = 500;
 
 const ASCII_SPACE: u8 = 32;
@@ -41,28 +41,7 @@ pub enum HeaderProperty {
     Prefix,
 }
 
-/// Offsets are here: https://www.gnu.org/software/tar/manual/html_node/Standard.html
-fn property_range(p: HeaderProperty) -> Range<usize> {
-    match p {
-        HeaderProperty::Name => 0..100,
-        HeaderProperty::Mode => 100..108,
-        HeaderProperty::Uid => 108..116,
-        HeaderProperty::Gid => 116..124,
-        HeaderProperty::Size => 124..136,
-        HeaderProperty::Mtime => 136..148,
-        HeaderProperty::Chksum => 148..156,
-        HeaderProperty::Typeflag => 156..157,
-        HeaderProperty::Linkname => 157..257,
-        HeaderProperty::Magic => 257..263,
-        HeaderProperty::Version => 263..265,
-        HeaderProperty::Uname => 265..297,
-        HeaderProperty::Gname => 297..329,
-        HeaderProperty::Devmajor => 329..337,
-        HeaderProperty::Devminor => 337..345,
-        HeaderProperty::Prefix => 345..500,
-    }
-}
-
+/// Define tar header type
 #[derive(Debug, PartialEq, Clone)]
 pub enum TypeFlag {
     /// regular file
@@ -119,8 +98,40 @@ pub struct Header {
     pheader: PosixHeader,
     /// Header position in source
     offset: usize,
-    /// Previous revision if any
-    prev: Option<Box<Header>>,
+    /// Index of previous revision (related to order in source)
+    prev: Option<usize>,
+}
+
+/// Aggregate meta info about tar archive (combine all headers in easy accessible way).
+#[derive(Debug)]
+pub struct TarMeta {
+    /// List of haders in same order as in source
+    headers: Vec<Header>,
+
+    /// Headers index by file name
+    index: HashMap<String, usize>,
+}
+
+/// Offsets are here: https://www.gnu.org/software/tar/manual/html_node/Standard.html
+fn property_range(p: HeaderProperty) -> Range<usize> {
+    match p {
+        HeaderProperty::Name => 0..100,
+        HeaderProperty::Mode => 100..108,
+        HeaderProperty::Uid => 108..116,
+        HeaderProperty::Gid => 116..124,
+        HeaderProperty::Size => 124..136,
+        HeaderProperty::Mtime => 136..148,
+        HeaderProperty::Chksum => 148..156,
+        HeaderProperty::Typeflag => 156..157,
+        HeaderProperty::Linkname => 157..257,
+        HeaderProperty::Magic => 257..263,
+        HeaderProperty::Version => 263..265,
+        HeaderProperty::Uname => 265..297,
+        HeaderProperty::Gname => 297..329,
+        HeaderProperty::Devmajor => 329..337,
+        HeaderProperty::Devminor => 337..345,
+        HeaderProperty::Prefix => 345..500,
+    }
 }
 
 impl Header {
@@ -216,3 +227,6 @@ impl PosixHeader {
         }
     }
 }
+
+
+impl TarMeta {}
