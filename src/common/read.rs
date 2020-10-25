@@ -1,8 +1,10 @@
 use std::io::{Read, Seek, SeekFrom};
 
+use crate::common::meta::PosixHeader;
+
 use super::BLOCK_SIZE;
+use super::meta::{Header, HeaderCheck};
 use super::offset_by_blocks;
-use super::meta::{Header, HeaderValidation};
 
 /// Extracts tar Headers from some source.
 #[derive(Debug)]
@@ -41,8 +43,11 @@ impl<'a, T: Read + Seek> HeadersParser<'a, T> {
         // }
         // println!("");
 
-        let h = Header::from(self.offset, buffer);
-        let size = h.size();
+        let ph = PosixHeader::from(self.offset, buffer);
+        ///TODO Should change approach and check validation first
+
+        let h = Header::from(ph);
+        let size = h.size;
         let shift = offset_by_blocks(size);
 
         //println!("File size {} shift {}", size, shift);
@@ -51,18 +56,18 @@ impl<'a, T: Read + Seek> HeadersParser<'a, T> {
         self.source.seek(SeekFrom::Current(shift as i64));
 
         // Now lets collect some stats
-        match &h.source().validate() {
-            HeaderValidation::Valid => {
+        match &h.check {
+            HeaderCheck::Valid => {
                 self.iter_valid_headers += 1;
                 if self.iter_zeroes > 0 {
                     // Valid header could not be after zero header - consider this as an error.
                     self.iter_invalid_headers += 1;
                 }
             }
-            HeaderValidation::Invalid => {
+            HeaderCheck::Invalid { not_ustar } => {
                 self.iter_invalid_headers += 1;
             }
-            HeaderValidation::Zeroes => {
+            HeaderCheck::Zeroes => {
                 if self.iter_zeroes > 2 {
                     // Only 2 zero headers allowed
                     self.iter_invalid_headers += 1;
@@ -82,7 +87,7 @@ impl<'a, T: Read + Seek> Iterator for HeadersParser<'a, T> {
     fn next(&mut self) -> Option<Self::Item> {
         let h = self.next_any()?;
 
-        if let HeaderValidation::Valid = h.source().validate() {
+        if let HeaderCheck::Valid = h.check {
             Some(h)
         } else {
             None
@@ -94,8 +99,9 @@ impl<'a, T: Read + Seek> Iterator for HeadersParser<'a, T> {
 mod tests {
     use std::env;
     use std::fs::File;
-    use std::path::{Path, PathBuf};
     use std::io::{Read, Seek, SeekFrom};
+    use std::path::{Path, PathBuf};
+
     use hamcrest2::prelude::*;
 
     use super::*;
@@ -104,9 +110,9 @@ mod tests {
     #[test]
     fn zero_header_validation() {
         let zeroes = [0; BLOCK_SIZE];
-        let header = PosixHeader::from(zeroes);
+        let header = PosixHeader::from(0, zeroes);
 
-        assert_that!(header.validate(), equal_to(HeaderValidation::Zeroes));
+        assert_that!(header.validate(), equal_to(HeaderCheck::Zeroes));
     }
 
     fn test_resources_path() -> PathBuf {
@@ -115,8 +121,8 @@ mod tests {
     }
 
     fn basic_header_validation(h: &Header) {
-        assert_that!(h.source().validate(), equal_to(HeaderValidation::Valid));
-        assert_that!(h.typeflag(), not(equal_to(TypeFlag::Unknown)));
+        assert_that!(h.check, equal_to(HeaderCheck::Valid));
+        assert_that!(h.typeflag, not(equal_to(HeaderType::Unknown)));
 
         // assert_that!(
         //     &h.source().extract(HeaderProperty::Magic).to_vec(),
@@ -142,18 +148,18 @@ mod tests {
 
         let file_1 = &headers[0];
         basic_header_validation(&file_1);
-        assert_that!(file_1.size(), equal_to(512));
+        assert_that!(file_1.size, equal_to(512));
 
         let file_2 = &headers[1];
         basic_header_validation(&file_2);
-        assert_that!(file_2.size(), less_than(512));
+        assert_that!(file_2.size, less_than(512));
 
         let file_3 = &headers[2];
         basic_header_validation(&file_3);
-        assert_that!(file_3.size(), greater_than(512));
+        assert_that!(file_3.size, greater_than(512));
         let file_4 = &headers[3];
         basic_header_validation(&file_4);
-        assert_that!(file_4.size(), less_than(512));
+        assert_that!(file_4.size, less_than(512));
     }
 
     #[test]
@@ -169,16 +175,16 @@ mod tests {
 
         let file_1 = &headers[0];
         basic_header_validation(&file_1);
-        assert_that!(file_1.size(), greater_than(0));
-        let mut prev_size = file_1.size();
+        assert_that!(file_1.size, greater_than(0));
+        let mut prev_size = file_1.size;
 
         let file_2 = &headers[1];
         basic_header_validation(&file_2);
-        assert_that!(file_2.size(), greater_than(prev_size));
-        prev_size = file_2.size();
+        assert_that!(file_2.size, greater_than(prev_size));
+        prev_size = file_2.size;
 
         let file_3 = &headers[2];
         basic_header_validation(&file_3);
-        assert_that!(file_3.size(), greater_than(prev_size));
+        assert_that!(file_3.size, greater_than(prev_size));
     }
 }

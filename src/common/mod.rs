@@ -6,9 +6,9 @@ use core::ops::Range;
 use std::io::{Read, Seek, SeekFrom};
 
 use self::meta::Header;
-use self::meta::HeaderValidation;
+use self::meta::HeaderCheck;
+use self::meta::HeaderType;
 use self::meta::PosixHeader;
-use self::meta::TypeFlag;
 
 pub mod meta;
 pub mod read;
